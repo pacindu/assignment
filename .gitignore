@@ -1,0 +1,97 @@
+# =============================================================================
+# Terraform
+# =============================================================================
+
+# Local .terraform directories (downloaded providers & modules)
+**/.terraform/
+
+# Terraform lock file — COMMIT this to pin provider versions
+# !.terraform.lock.hcl
+
+# State files — stored remotely in S3, never commit locally
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Terraform plan output files (may contain secrets)
+*.tfplan
+*.plan
+
+
+# Override files (local developer overrides, not for shared use)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform CLI config
+.terraformrc
+terraform.rc
+
+# =============================================================================
+# Secrets & credentials
+# =============================================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+credentials.json
+
+# =============================================================================
+# CI/CD artefacts
+# =============================================================================
+*.zip
+*.tar.gz
+scan-results/
+trivy-report.*
+checkov-report.*
+opa-results.*
+
+# =============================================================================
+# macOS
+# =============================================================================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# =============================================================================
+# Editors & IDEs
+# =============================================================================
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# Python (scripts / Lambda / tooling)
+# =============================================================================
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+dist/
+*.egg-info/
+
+# =============================================================================
+# Node (if any tooling uses it)
+# =============================================================================
+node_modules/
+npm-debug.log*
+
+# =============================================================================
+# Logs
+# =============================================================================
+*.log
+logs/
