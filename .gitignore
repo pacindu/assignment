@@ -98,3 +98,5 @@ logs/
 
 
 notes.md
+
+.terraform.lock.hcl
