@@ -1,0 +1,213 @@
+# =============================================================================
+# Orchestration CI/CD — NTT GCC Self-Healing Deployment Workflow
+#
+# Triggers on changes to orchestration/ or this workflow file.
+#
+# Jobs:
+#   test                  — pytest unit + negative tests (all branches)
+#   deploy-infra          — terraform apply for Lambda + Step Functions (main only)
+#   invoke-workflow       — start the Step Functions execution after infra deploy
+#
+# Required GitHub Secrets:
+#   AWS_DEPLOY_ROLE_ARN   — IAM role assumed via OIDC
+#
+# Required GitHub Variables (or override via environment):
+#   STATE_MACHINE_ARN     — ARN output from the orchestration Terraform stack
+#   ENDPOINT_URL          — Application HTTPS endpoint
+#   CLUSTER_NAME          — ECS cluster name
+#   SERVICE_NAME          — ECS service name
+#   TASK_FAMILY           — ECS task definition family
+#   ECR_REGISTRY          — ECR registry URL
+#   ECR_REPOSITORY        — ECR repository name
+#   EVIDENCE_BUCKET       — S3 bucket for evidence artefacts
+#   LOG_GROUP_NAME        — CloudWatch log group for the app
+# =============================================================================
+
+name: Orchestration CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "orchestration/**"
+      - ".github/workflows/orchestration.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "orchestration/**"
+      - ".github/workflows/orchestration.yml"
+
+env:
+  AWS_REGION:     ap-southeast-1
+  TF_WORKING_DIR: orchestration/infra
+  TF_WORKSPACE:   Production
+  # These are read from GitHub Variables (set in repo Settings → Variables)
+  CLUSTER_NAME:     Ntt-Gcc-Production-Cluster
+  SERVICE_NAME:     Ntt-Gcc-Production-Service
+  TASK_FAMILY:      Ntt-Gcc-Production-Task
+  CONTAINER_NAME:   app
+  ECR_REGISTRY:     992382521824.dkr.ecr.ap-southeast-1.amazonaws.com
+  ECR_REPOSITORY:   ntt-gcc-production-app
+  ENDPOINT_URL:     https://app.ntt.demodevops.net
+  LOG_GROUP_NAME:   /ecs/app/ntt-gcc-production
+  EVIDENCE_BUCKET:  ntt-gcc-production-alb-logs-992382521824
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Unit + negative tests — runs on every push/PR
+  # ---------------------------------------------------------------------------
+  test:
+    name: Unit & Negative Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: orchestration/requirements-test.txt
+
+      - name: Install test dependencies
+        run: pip install -r orchestration/requirements-test.txt
+
+      - name: Run pytest (unit + negative tests)
+        run: |
+          pytest orchestration/tests/ \
+            -v \
+            --tb=short \
+            --junitxml=orchestration-test-results.xml \
+            -q
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orchestration-test-results
+          path: orchestration-test-results.xml
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 2. Deploy orchestration infrastructure (Lambda + Step Functions)
+  #    Runs only on merge to main
+  # ---------------------------------------------------------------------------
+  deploy-infra:
+    name: Deploy Orchestration Infra
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    outputs:
+      state_machine_arn: ${{ steps.tf-outputs.outputs.state_machine_arn }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.0"
+          terraform_wrapper: true
+
+      - name: terraform init
+        run: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: terraform validate
+        run: terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: terraform apply
+        run: |
+          terraform apply \
+            -auto-approve \
+            -var-file=Production.tfvars
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Capture Terraform outputs
+        id: tf-outputs
+        run: |
+          ARN=$(terraform output -raw state_machine_arn)
+          echo "state_machine_arn=$ARN" >> $GITHUB_OUTPUT
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+  # ---------------------------------------------------------------------------
+  # 3. Invoke the self-healing deployment workflow
+  #    Uses the image tag from the most recent App CI/CD run on main
+  # ---------------------------------------------------------------------------
+  invoke-workflow:
+    name: Invoke Step Functions Workflow
+    needs: deploy-infra
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: orchestration/requirements-test.txt
+
+      - name: Install CLI dependencies
+        run: pip install boto3
+
+      - name: Resolve latest ECR image tag
+        id: image
+        run: |
+          # Use the Git SHA of the most recently pushed app image
+          TAG=$(aws ecr describe-images \
+            --repository-name ${{ env.ECR_REPOSITORY }} \
+            --query 'sort_by(imageDetails, &imagePushedAt)[-1].imageTags[0]' \
+            --output text)
+          echo "image_tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Resolved image tag: $TAG"
+
+      - name: Invoke deployment workflow
+        env:
+          STATE_MACHINE_ARN: ${{ needs.deploy-infra.outputs.state_machine_arn }}
+        run: |
+          python orchestration/scripts/deploy.py \
+            --environment Production \
+            --image-tag ${{ steps.image.outputs.image_tag }} \
+            --state-machine-arn "$STATE_MACHINE_ARN" \
+            --endpoint-url     "${{ env.ENDPOINT_URL }}" \
+            --cluster-name     "${{ env.CLUSTER_NAME }}" \
+            --service-name     "${{ env.SERVICE_NAME }}" \
+            --task-family      "${{ env.TASK_FAMILY }}" \
+            --container-name   "${{ env.CONTAINER_NAME }}" \
+            --ecr-registry     "${{ env.ECR_REGISTRY }}" \
+            --ecr-repository   "${{ env.ECR_REPOSITORY }}" \
+            --evidence-bucket  "${{ env.EVIDENCE_BUCKET }}" \
+            --log-group-name   "${{ env.LOG_GROUP_NAME }}" \
+            --timeout 900
+
+      - name: Upload deployment audit log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deployment-audit-log-${{ github.sha }}
+          retention-days: 30
