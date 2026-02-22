@@ -10,8 +10,7 @@ terraform {
 }
 
 provider "aws" {
-  region  = var.region
-  profile = "state"
+  region = var.region
 
   # Assume the IAM role mapped to the current workspace.
   # This allows different workspaces (Production, Staging) to provision
