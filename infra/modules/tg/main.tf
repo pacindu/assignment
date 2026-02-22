@@ -13,7 +13,7 @@ resource "aws_lb_target_group" "this" {
     timeout             = var.health_check_timeout
     healthy_threshold   = var.healthy_threshold
     unhealthy_threshold = var.unhealthy_threshold
-    matcher             = "200-499" #change later
+    matcher             = "200"
   }
 
   tags = var.tags

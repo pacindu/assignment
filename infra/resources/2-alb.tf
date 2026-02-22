@@ -85,3 +85,16 @@ module "alb" {
 
   depends_on = [module.s3_alb_logs]
 }
+
+# -----------------------------------------------------------------------------
+# WAF — Web ACL with AWS managed rules + rate limiting, associated to the ALB
+# Rules: IP reputation (10), OWASP core (20), known bad inputs (30), rate (40)
+# -----------------------------------------------------------------------------
+module "waf" {
+  source = "../modules/waf"
+
+  name       = "${local.prefix}-Waf"
+  alb_arn    = module.alb.alb_arn
+  rate_limit = var.waf_rate_limit
+  tags       = var.tags
+}
