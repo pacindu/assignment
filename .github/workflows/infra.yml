@@ -134,6 +134,7 @@ jobs:
       # - name: Fail on policy violations
       #   if: steps.checkov.outcome == 'failure'
       #   run: exit 1
+      
 
   # ---------------------------------------------------------------------------
   # 3. Terraform plan — runs on PR only, posts plan as PR comment
@@ -163,10 +164,6 @@ jobs:
 
       - name: terraform init
         run: terraform init
-        working-directory: ${{ env.TF_WORKING_DIR }}
-
-      - name: terraform workspace select
-        run: terraform workspace select ${{ env.TF_WORKSPACE }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: terraform plan
@@ -235,10 +232,6 @@ jobs:
 
       - name: terraform init
         run: terraform init
-        working-directory: ${{ env.TF_WORKING_DIR }}
-
-      - name: terraform workspace select
-        run: terraform workspace select ${{ env.TF_WORKSPACE }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: terraform apply

@@ -6,6 +6,5 @@ terraform {
     encrypt        = true
     kms_key_id     = "alias/NTT-terraform-state"
     dynamodb_table = "ntt-terraform-state-lock"
-    profile        = "state"
   }
 }
