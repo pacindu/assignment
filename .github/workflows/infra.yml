@@ -78,6 +78,7 @@ jobs:
     name: Checkov Policy Gate
     runs-on: ubuntu-latest
     permissions:
+      contents:        read
       security-events: write
 
     steps:
@@ -88,6 +89,7 @@ jobs:
       - name: Install Checkov
         run: pip install checkov
 
+      # Step 1: CLI output in logs — exit code drives the gate
       - name: Run Checkov
         id: checkov
         continue-on-error: true
@@ -95,9 +97,19 @@ jobs:
           checkov \
             --directory infra/ \
             --framework terraform \
-            --output cli \
+            --output cli
+
+      # Step 2: SARIF written to file via stdout redirect — soft-fail so the
+      # exit code of this step does not affect the gate above
+      - name: Generate Checkov SARIF
+        if: always()
+        run: |
+          checkov \
+            --directory infra/ \
+            --framework terraform \
             --output sarif \
-            --output-file-path "console,${{ github.workspace }}/checkov-results.sarif"
+            --soft-fail \
+            > "${{ github.workspace }}/checkov-results.sarif"
 
       - name: Upload Checkov SARIF report
         uses: github/codeql-action/upload-sarif@v4
