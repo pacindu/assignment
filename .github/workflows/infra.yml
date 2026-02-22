@@ -101,17 +101,21 @@ jobs:
 
       # Step 2: SARIF written to file — soft-fail so the exit code of this
       # step does not affect the gate above.
-      # awk strips the ASCII banner checkov emits before the JSON on stdout.
+      # Write raw output to a temp file first (avoids pipe-buffer truncation),
+      # then use a Python one-liner to strip the ASCII banner and extract
+      # the JSON portion starting at the first '{'.
       - name: Generate Checkov SARIF
         if: always()
+        env:
+          SARIF_PATH: ${{ github.workspace }}/checkov-results.sarif
         run: |
           checkov \
             --directory infra/ \
             --framework terraform \
             --output sarif \
             --soft-fail \
-          | awk '/^\{/{f=1} f' \
-          > "${{ github.workspace }}/checkov-results.sarif"
+            > /tmp/checkov-raw.txt 2>&1 || true
+          python3 -c "import os; d=open('/tmp/checkov-raw.txt').read(); i=d.find('{'); open(os.environ['SARIF_PATH'],'w').write(d[i:] if i>=0 else '{}')"
 
       - name: Upload Checkov SARIF report
         uses: github/codeql-action/upload-sarif@v4
