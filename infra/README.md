@@ -357,4 +357,4 @@ IAM role ARN to `workspace_iam_roles` in the tfvars file.
 
 ## AWSArchitecture
 
-![Diagram]("AWSArchitecture.jpg")
+![Diagram](AWSArchitecture.png)
