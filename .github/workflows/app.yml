@@ -166,6 +166,8 @@ jobs:
     needs: build-scan-push
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment:
+        name: Production-App
 
     permissions:
       id-token: write
