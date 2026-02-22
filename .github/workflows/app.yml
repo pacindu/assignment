@@ -117,22 +117,33 @@ jobs:
             app/
 
       # Scan BEFORE pushing — block on CRITICAL or HIGH unfixed CVEs
+      # Run Trivy directly on the runner (not via Docker action) so it shares
+      # the same Docker daemon that built the image with --load.
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
       - name: Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@0.29.0
-        with:
-          image-ref:      ${{ steps.meta.outputs.image }}
-          format:         sarif
-          output:         ${{ github.workspace }}/trivy-results.sarif
-          exit-code:      "1"
-          severity:       CRITICAL,HIGH
-          ignore-unfixed: true
+        id: trivy
+        continue-on-error: true
+        run: |
+          trivy image \
+            --format sarif \
+            --output trivy-results.sarif \
+            --exit-code 1 \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            ${{ steps.meta.outputs.image }}
 
       - name: Upload Trivy SARIF report
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: ${{ github.workspace }}/trivy-results.sarif
+          sarif_file: trivy-results.sarif
           category:   trivy
+
+      - name: Fail on critical/high vulnerabilities
+        if: steps.trivy.outcome == 'failure'
+        run: exit 1
 
       # Push only on main after scan passes
       - name: Push to ECR

@@ -83,21 +83,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Run Checkov directly on the runner (not via Docker action) so the
+      # SARIF output file is written to the runner filesystem, not a container.
+      - name: Install Checkov
+        run: pip install checkov
+
       - name: Run Checkov
-        uses: bridgecrewio/checkov-action@master
-        with:
-          directory:         infra/
-          framework:         terraform
-          output_format:     cli,sarif
-          output_file_path:  console,${{ github.workspace }}/checkov-results.sarif
-          soft_fail:         false  # Hard failure on policy violations
+        id: checkov
+        continue-on-error: true
+        run: |
+          checkov \
+            --directory infra/ \
+            --framework terraform \
+            --output cli \
+            --output sarif \
+            --output-file-path console,checkov-results.sarif
 
       - name: Upload Checkov SARIF report
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: ${{ github.workspace }}/checkov-results.sarif
+          sarif_file: checkov-results.sarif
           category:   checkov
+
+      - name: Fail on policy violations
+        if: steps.checkov.outcome == 'failure'
+        run: exit 1
 
   # ---------------------------------------------------------------------------
   # 3. Terraform plan — runs on PR only, posts plan as PR comment
