@@ -30,7 +30,7 @@ def index():
     })
 
 
-@app.route("/health")
+@app.route("/healthz")
 def health():
     """ALB target group health check — must return HTTP 200."""
     return jsonify({
