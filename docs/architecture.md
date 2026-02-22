@@ -167,3 +167,7 @@ deployed via a fully automated GitHub Actions CI/CD pipeline.
 | Workspace-based IAM | Separate IAM roles per workspace (Production/Staging) via `assume_role` |
 | Checkov policy gate | Automated compliance scanning on every push; SARIF output to GitHub Security |
 | Trivy image scanning | Blocks on CRITICAL/HIGH unfixed CVEs before ECR push |
+
+
+
+![Diagram]("AWSArchitecture.jpg")

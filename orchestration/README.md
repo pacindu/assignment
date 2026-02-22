@@ -290,3 +290,9 @@ Evidence S3 key pattern:
 | No approval gate before deployment | Add a Step Functions human approval task (requires SNS + callback pattern) |
 | HTTP verify cannot reach private endpoints | Run Lambda in the same VPC with a VPC endpoint or through NAT |
 | Single Lambda for evidence upload; S3 PUT may fail | Evidence already has a Catch that skips to terminal state — CW Logs always captures the summary |
+
+
+
+![Success](success.png)
+
+![Rollback](rollback.png)

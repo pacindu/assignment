@@ -350,3 +350,11 @@ tags = {
 
 To add a new environment, create `workspaces/<Name>.tfvars` and add the workspace name +
 IAM role ARN to `workspace_iam_roles` in the tfvars file.
+
+
+
+---
+
+## AWSArchitecture
+
+![Diagram]("AWSArchitecture.jpg")
