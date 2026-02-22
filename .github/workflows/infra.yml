@@ -100,9 +100,13 @@ jobs:
             --output cli
 
       # Step 2: SARIF written to file via stdout redirect — soft-fail so the
-      # exit code of this step does not affect the gate above
+      # exit code of this step does not affect the gate above.
+      # CKV_NO_BANNER=1 suppresses the ASCII banner that checkov prints to
+      # stdout before the JSON, which would otherwise corrupt the SARIF file.
       - name: Generate Checkov SARIF
         if: always()
+        env:
+          CKV_NO_BANNER: "1"
         run: |
           checkov \
             --directory infra/ \
