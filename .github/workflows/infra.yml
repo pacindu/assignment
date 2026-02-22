@@ -212,6 +212,8 @@ jobs:
     needs: [validate, checkov]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    environment:
+        name: Production-Infra
 
     permissions:
       id-token: write
