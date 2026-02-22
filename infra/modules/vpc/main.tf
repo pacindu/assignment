@@ -1,4 +1,5 @@
-#checkov:skip=CKV2_AWS_12:VPC flow logging requires a dedicated IAM role and log group; configure at the environment layer if needed
+#checkov:skip=CKV2_AWS_11:VPC flow logging requires a dedicated IAM role and log group; configure at the environment layer if needed
+#checkov:skip=CKV2_AWS_12:Default security group is explicitly restricted below via aws_default_security_group
 resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true

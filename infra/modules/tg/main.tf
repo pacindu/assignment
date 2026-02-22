@@ -1,4 +1,5 @@
 #checkov:skip=CKV_AWS_131:HTTP is used only between ALB and ECS containers (internal); TLS terminates at the ALB listener — this is the standard AWS architecture
+#checkov:skip=CKV_AWS_378:HTTP is used only between ALB and ECS containers (internal); TLS terminates at the ALB listener — this is the standard AWS architecture
 resource "aws_lb_target_group" "this" {
   name                 = var.name
   port                 = var.port

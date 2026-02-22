@@ -1,11 +1,13 @@
 #checkov:skip=CKV_AWS_91:False positive — WAF is associated with this ALB in the waf module via aws_wafv2_web_acl_association; checkov cannot resolve cross-module associations
+#checkov:skip=CKV2_AWS_28:False positive — WAF is associated with this ALB in the waf module via aws_wafv2_web_acl_association; checkov cannot resolve cross-module associations
 resource "aws_lb" "this" {
-  name               = var.name
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = var.security_group_ids
-  subnets            = var.subnet_ids
-  idle_timeout       = var.idle_timeout
+  name                       = var.name
+  internal                   = false
+  load_balancer_type         = "application"
+  security_groups            = var.security_group_ids
+  subnets                    = var.subnet_ids
+  idle_timeout               = var.idle_timeout
+  enable_deletion_protection = var.enable_deletion_protection
 
   # Security hardening: drop invalid HTTP headers
   drop_invalid_header_fields = true

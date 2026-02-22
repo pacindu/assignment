@@ -1,4 +1,8 @@
 #checkov:skip=CKV2_AWS_1:False positive — subnets are associated via the subnet_ids argument on aws_network_acl, which is equivalent to aws_network_acl_association resources
+#checkov:skip=CKV_AWS_229:False positive — the public NACL only opens ports 80, 443, and 1024-65535; port 21 is not in any rule; checkov cannot evaluate dynamic block values
+#checkov:skip=CKV_AWS_230:False positive — the public NACL only opens ports 80, 443, and 1024-65535; port 20 is not in any rule; checkov cannot evaluate dynamic block values
+#checkov:skip=CKV_AWS_231:False positive — the public NACL only opens ports 80, 443, and 1024-65535; port 3389 is not in any rule; checkov cannot evaluate dynamic block values
+#checkov:skip=CKV_AWS_232:False positive — the public NACL only opens ports 80, 443, and 1024-65535; port 22 is not in any rule; checkov cannot evaluate dynamic block values
 resource "aws_network_acl" "this" {
   vpc_id     = var.vpc_id
   subnet_ids = var.subnet_ids

@@ -44,6 +44,15 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
   bucket = aws_s3_bucket.this.id
 
   rule {
+    id     = "abort-failed-uploads"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+
+  rule {
     id     = "expire-noncurrent-versions"
     status = "Enabled"
 

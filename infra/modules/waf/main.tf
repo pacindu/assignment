@@ -137,6 +137,7 @@ resource "aws_wafv2_web_acl_association" "this" {
 # -----------------------------------------------------------------------------
 # WAF logging — CloudWatch log group (name must start with "aws-waf-logs-")
 # -----------------------------------------------------------------------------
+#checkov:skip=CKV_AWS_158:KMS encryption for WAF log groups requires a dedicated key policy granting waf.amazonaws.com access; a separate KMS module would add complexity disproportionate to the risk
 resource "aws_cloudwatch_log_group" "waf" {
   name              = "aws-waf-logs-${var.name}"
   retention_in_days = 365

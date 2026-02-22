@@ -56,7 +56,7 @@ module "cwlog_ecs_exec" {
   source = "../modules/cwlog"
 
   name              = "/ecs/exec/${local.prefix}"
-  retention_in_days = 90
+  retention_in_days = 365
   kms_key_arn       = module.kms_ecs.key_arn
   tags              = var.tags
 }
@@ -65,7 +65,7 @@ module "cwlog_app" {
   source = "../modules/cwlog"
 
   name              = "/ecs/app/${local.prefix}"
-  retention_in_days = 90
+  retention_in_days = 365
   kms_key_arn       = module.kms_ecs.key_arn
   tags              = var.tags
 }

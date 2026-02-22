@@ -15,6 +15,9 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
+#checkov:skip=CKV_AWS_109:kms:* on resource * is required for the root account KMS key admin statement — standard AWS pattern to prevent key lockout
+#checkov:skip=CKV_AWS_111:kms:* write access on resource * is required for the root account KMS key admin statement — standard AWS pattern
+#checkov:skip=CKV_AWS_356:resource * in a KMS key policy refers to the key itself, not all AWS resources — checkov false positive
 data "aws_iam_policy_document" "state_kms" {
   # Root account full admin — prevents key lockout
   statement {
@@ -189,6 +192,15 @@ resource "aws_s3_bucket_versioning" "state" {
 
 resource "aws_s3_bucket_lifecycle_configuration" "state" {
   bucket = aws_s3_bucket.state.id
+
+  rule {
+    id     = "abort-failed-uploads"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 
   rule {
     id     = "expire-noncurrent-state-versions"

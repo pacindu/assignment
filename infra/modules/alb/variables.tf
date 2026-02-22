@@ -40,6 +40,12 @@ variable "idle_timeout" {
   default     = 60
 }
 
+variable "enable_deletion_protection" {
+  description = "Enable deletion protection on the ALB (recommended for production)"
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "A map of tags to apply to all resources"
   type        = map(string)
