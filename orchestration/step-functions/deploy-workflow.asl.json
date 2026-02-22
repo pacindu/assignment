@@ -1,0 +1,239 @@
+{
+  "Comment": "NTT GCC — Self-Healing Deployment Workflow. Validates prerequisites, deploys to ECS, verifies the endpoint, and rolls back automatically on failure. Evidence is uploaded to S3 regardless of outcome.",
+  "StartAt": "PreflightValidation",
+  "States": {
+
+    "PreflightValidation": {
+      "Type": "Task",
+      "Comment": "Validate required parameters, AWS region/account constraints, and mandatory resource tags.",
+      "Resource": "PREFLIGHT_LAMBDA_ARN",
+      "ResultPath": "$.preflight",
+      "Next": "PreflightCheck",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "UploadEvidencePreflightFailed"
+        }
+      ]
+    },
+
+    "PreflightCheck": {
+      "Type": "Choice",
+      "Comment": "Branch on whether all pre-flight checks passed.",
+      "Choices": [
+        {
+          "Variable": "$.preflight.passed",
+          "BooleanEquals": true,
+          "Next": "DeployApp"
+        }
+      ],
+      "Default": "UploadEvidencePreflightFailed"
+    },
+
+    "DeployApp": {
+      "Type": "Task",
+      "Comment": "Register a new ECS task definition revision with the updated image and update the service.",
+      "Resource": "DEPLOY_LAMBDA_ARN",
+      "ResultPath": "$.deploy",
+      "Next": "WaitForStability",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "UploadEvidenceDeployFailed"
+        }
+      ]
+    },
+
+    "WaitForStability": {
+      "Type": "Wait",
+      "Comment": "Allow time for ECS to drain old tasks and start new ones before running verification.",
+      "Seconds": 60,
+      "Next": "PostDeployVerification"
+    },
+
+    "PostDeployVerification": {
+      "Type": "Task",
+      "Comment": "Run HTTP health/header checks and scan CloudWatch Logs for ERROR patterns.",
+      "Resource": "VERIFY_LAMBDA_ARN",
+      "ResultPath": "$.verification",
+      "Next": "VerificationCheck",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "Rollback"
+        }
+      ]
+    },
+
+    "VerificationCheck": {
+      "Type": "Choice",
+      "Comment": "Proceed to success if verification passed, otherwise roll back.",
+      "Choices": [
+        {
+          "Variable": "$.verification.passed",
+          "BooleanEquals": true,
+          "Next": "UploadEvidenceSuccess"
+        }
+      ],
+      "Default": "Rollback"
+    },
+
+    "Rollback": {
+      "Type": "Task",
+      "Comment": "Revert the ECS service to the previous stable task definition revision.",
+      "Resource": "ROLLBACK_LAMBDA_ARN",
+      "ResultPath": "$.rollback",
+      "Next": "UploadEvidenceRollback",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "RollbackFailed"
+        }
+      ]
+    },
+
+    "UploadEvidenceSuccess": {
+      "Type": "Task",
+      "Comment": "Upload a timestamped JSON evidence artefact to S3 (success path).",
+      "Resource": "EVIDENCE_LAMBDA_ARN",
+      "Parameters": {
+        "outcome": "SUCCESS",
+        "context.$": "$"
+      },
+      "ResultPath": "$.evidence",
+      "Next": "DeploymentSucceeded",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "DeploymentSucceeded"
+        }
+      ]
+    },
+
+    "UploadEvidenceRollback": {
+      "Type": "Task",
+      "Comment": "Upload evidence artefact after a successful rollback.",
+      "Resource": "EVIDENCE_LAMBDA_ARN",
+      "Parameters": {
+        "outcome": "ROLLBACK_COMPLETE",
+        "context.$": "$"
+      },
+      "ResultPath": "$.evidence",
+      "Next": "DeploymentFailed",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "DeploymentFailed"
+        }
+      ]
+    },
+
+    "UploadEvidencePreflightFailed": {
+      "Type": "Task",
+      "Comment": "Upload evidence artefact when pre-flight validation blocks deployment.",
+      "Resource": "EVIDENCE_LAMBDA_ARN",
+      "Parameters": {
+        "outcome": "PREFLIGHT_FAILED",
+        "context.$": "$"
+      },
+      "ResultPath": "$.evidence",
+      "Next": "DeploymentFailed",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "DeploymentFailed"
+        }
+      ]
+    },
+
+    "UploadEvidenceDeployFailed": {
+      "Type": "Task",
+      "Comment": "Upload evidence artefact when ECS deploy fails (no rollback needed — service unchanged).",
+      "Resource": "EVIDENCE_LAMBDA_ARN",
+      "Parameters": {
+        "outcome": "DEPLOY_FAILED",
+        "context.$": "$"
+      },
+      "ResultPath": "$.evidence",
+      "Next": "DeploymentFailed",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "DeploymentFailed"
+        }
+      ]
+    },
+
+    "DeploymentSucceeded": {
+      "Type": "Succeed"
+    },
+
+    "DeploymentFailed": {
+      "Type": "Fail",
+      "Error": "DEPLOYMENT_FAILED",
+      "Cause": "Deployment failed or rolled back. See evidence artefact in S3 for details."
+    },
+
+    "RollbackFailed": {
+      "Type": "Fail",
+      "Error": "ROLLBACK_FAILED",
+      "Cause": "Post-deploy verification failed AND automated rollback also failed. Manual intervention required."
+    }
+  }
+}
