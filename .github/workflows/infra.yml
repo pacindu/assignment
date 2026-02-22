@@ -99,21 +99,19 @@ jobs:
             --framework terraform \
             --output cli
 
-      # Step 2: SARIF written to file via stdout redirect — soft-fail so the
-      # exit code of this step does not affect the gate above.
-      # CKV_NO_BANNER=1 suppresses the ASCII banner that checkov prints to
-      # stdout before the JSON, which would otherwise corrupt the SARIF file.
+      # Step 2: SARIF written to file — soft-fail so the exit code of this
+      # step does not affect the gate above.
+      # awk strips the ASCII banner checkov emits before the JSON on stdout.
       - name: Generate Checkov SARIF
         if: always()
-        env:
-          CKV_NO_BANNER: "1"
         run: |
           checkov \
             --directory infra/ \
             --framework terraform \
             --output sarif \
             --soft-fail \
-            > "${{ github.workspace }}/checkov-results.sarif"
+          | awk '/^\{/{f=1} f' \
+          > "${{ github.workspace }}/checkov-results.sarif"
 
       - name: Upload Checkov SARIF report
         uses: github/codeql-action/upload-sarif@v4
