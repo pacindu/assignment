@@ -203,11 +203,13 @@ jobs:
             --ecr-repository   "${{ env.ECR_REPOSITORY }}" \
             --evidence-bucket  "${{ env.EVIDENCE_BUCKET }}" \
             --log-group-name   "${{ env.LOG_GROUP_NAME }}" \
-            --timeout 900
+            --timeout 900 \
+            | tee deployment-audit.json
 
       - name: Upload deployment audit log
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: deployment-audit-log-${{ github.sha }}
+          path: deployment-audit.json
           retention-days: 30
