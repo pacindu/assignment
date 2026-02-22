@@ -5,7 +5,7 @@
 #
 # Jobs:
 #   test                  — pytest unit + negative tests (all branches)
-#   deploy-infra          — terraform apply for Lambda + Step Functions (main only)
+#   deploy-sfn-infra      — terraform apply for Lambda + Step Functions (main only)
 #   invoke-workflow       — start the Step Functions execution after infra deploy
 #
 # Required GitHub Secrets:
@@ -94,8 +94,8 @@ jobs:
   # 2. Deploy orchestration infrastructure (Lambda + Step Functions)
   #    Runs only on merge to main
   # ---------------------------------------------------------------------------
-  deploy-infra:
-    name: Deploy Orchestration Infra
+  deploy-sfn-infra:
+    name: Deploy Lambda + Step Functions Infra
     needs: test
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -149,7 +149,7 @@ jobs:
   # ---------------------------------------------------------------------------
   invoke-workflow:
     name: Invoke Step Functions Workflow
-    needs: deploy-infra
+    needs: deploy-sfn-infra
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
@@ -188,7 +188,7 @@ jobs:
 
       - name: Invoke deployment workflow
         env:
-          STATE_MACHINE_ARN: ${{ needs.deploy-infra.outputs.state_machine_arn }}
+          STATE_MACHINE_ARN: ${{ needs.deploy-sfn-infra.outputs.state_machine_arn }}
         run: |
           python orchestration/scripts/deploy.py \
             --environment Production \

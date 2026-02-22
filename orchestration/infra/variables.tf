@@ -68,3 +68,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "workspace_iam_roles" {
+  description = "Map of workspace name to IAM role ARN to assume when provisioning resources"
+  type        = map(string)
+}
+
