@@ -251,8 +251,8 @@ pytest orchestration/tests/ -v --tb=short
 | Job | Trigger | Description |
 |---|---|---|
 | `test` | All pushes and PRs | pytest unit + negative tests |
-| `deploy-infra` | Merge to `main` | `terraform apply` for Lambda + Step Functions infra |
-| `invoke-workflow` | After `deploy-infra` succeeds | Invokes the state machine with the latest ECR image tag |
+| `deploy-sfn-infra` | Merge to `main` | `terraform apply` for Lambda + Step Functions infra |
+| `invoke-workflow` | After `deploy-sfn-infra` succeeds | Invokes the state machine with the latest ECR image tag |
 
 ---
 
