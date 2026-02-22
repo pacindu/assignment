@@ -99,6 +99,12 @@ data "aws_iam_policy_document" "state_kms" {
 #   tags = var.tags
 # }
 
+# AdministratorAccess — full AWS access for Terraform deployments
+# resource "aws_iam_role_policy_attachment" "cicd_admin" {
+#   role       = aws_iam_role.cicd.name
+#   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+# }
+
 # Inline policy — Terraform state access (S3 + DynamoDB + KMS)
 # resource "aws_iam_role_policy" "cicd_state" {
 #   name = "terraform-state-access"
