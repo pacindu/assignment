@@ -100,23 +100,27 @@ jobs:
             --framework terraform \
             --output cli
 
-      # Step 2: SARIF written to file — soft-fail so the exit code of this
-      # step does not affect the gate above.
-      # Write raw output to a temp file first (avoids pipe-buffer truncation),
-      # then use a Python one-liner to strip the ASCII banner and extract
-      # the JSON portion starting at the first '{'.
+      # Step 2: SARIF written to a dedicated directory so checkov uses its own
+      # file-writing path (avoids stdout banner corruption entirely).
+      # checkov creates results_sarif.sarif inside the output directory.
       - name: Generate Checkov SARIF
         if: always()
         env:
           SARIF_PATH: ${{ github.workspace }}/checkov-results.sarif
         run: |
+          mkdir -p /tmp/checkov-out
           checkov \
             --directory infra/ \
             --framework terraform \
             --output sarif \
-            --soft-fail \
-            > /tmp/checkov-raw.txt 2>/dev/null || true
-          python3 -c "import os; d=open('/tmp/checkov-raw.txt').read(); i=d.find('{'); open(os.environ['SARIF_PATH'],'w').write(d[i:] if i>=0 else '{}')"
+            --output-file-path /tmp/checkov-out \
+            --soft-fail || true
+          SARIF_FILE=$(find /tmp/checkov-out -name "*.sarif" | head -1)
+          if [ -n "$SARIF_FILE" ]; then
+            cp "$SARIF_FILE" "$SARIF_PATH"
+          else
+            echo '{"version":"2.1.0","$schema":"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json","runs":[]}' > "$SARIF_PATH"
+          fi
 
       - name: Upload Checkov SARIF report
         uses: github/codeql-action/upload-sarif@v4
