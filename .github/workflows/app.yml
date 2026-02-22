@@ -6,7 +6,7 @@
 # Jobs:
 #   test            — pytest unit tests (all branches)
 #   build-scan-push — build linux/arm64 image, Trivy scan, push to ECR (main only)
-#   deploy          — rolling ECS deploy with manual approval gate (main only)
+#   deploy          — rolling ECS deploy (main only)
 #
 # Deployment strategy: ECS rolling update (deployment_circuit_breaker + auto-rollback
 # configured in Terraform; AWS rolls back automatically on failed health checks).
@@ -122,7 +122,7 @@ jobs:
         with:
           image-ref:      ${{ steps.meta.outputs.image }}
           format:         sarif
-          output:         trivy-results.sarif
+          output:         ${{ github.workspace }}/trivy-results.sarif
           exit-code:      "1"
           severity:       CRITICAL,HIGH
           ignore-unfixed: true
@@ -131,7 +131,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: trivy-results.sarif
+          sarif_file: ${{ github.workspace }}/trivy-results.sarif
           category:   trivy
 
       # Push only on main after scan passes
@@ -144,14 +144,14 @@ jobs:
           docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
 
   # ---------------------------------------------------------------------------
-  # 3. Deploy to ECS — rolling update with manual approval gate
+  # 3. Deploy to ECS — rolling update
+  # Note: approval gate via GitHub Environments requires Team/Enterprise plan.
   # ---------------------------------------------------------------------------
   deploy:
     name: Deploy to ECS
     needs: build-scan-push
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment: Production  # Configure reviewers in GitHub → Settings → Environments
 
     permissions:
       id-token: write

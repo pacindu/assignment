@@ -7,7 +7,7 @@
 #   validate  — terraform fmt, validate, tflint
 #   checkov   — Checkov IaC security scan (policy gate)
 #   plan      — terraform plan posted as PR comment (PR only)
-#   apply     — terraform apply with manual approval gate (main push only)
+#   apply     — terraform apply (main push only)
 #
 # Required GitHub secrets:
 #   AWS_DEPLOY_ROLE_ARN  — IAM role ARN assumed via OIDC (no static keys)
@@ -89,14 +89,14 @@ jobs:
           directory:         infra/
           framework:         terraform
           output_format:     cli,sarif
-          output_file_path:  console,checkov-results.sarif
+          output_file_path:  console,${{ github.workspace }}/checkov-results.sarif
           soft_fail:         false  # Hard failure on policy violations
 
       - name: Upload Checkov SARIF report
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: checkov-results.sarif
+          sarif_file: ${{ github.workspace }}/checkov-results.sarif
           category:   checkov
 
   # ---------------------------------------------------------------------------
@@ -171,15 +171,14 @@ jobs:
             })
 
   # ---------------------------------------------------------------------------
-  # 4. Terraform apply — runs on push to main, requires manual approval
-  #    Configure reviewers: GitHub → Settings → Environments → Production
+  # 4. Terraform apply — runs on push to main
+  # Note: approval gate via GitHub Environments requires Team/Enterprise plan.
   # ---------------------------------------------------------------------------
   apply:
     name: Terraform Apply
     needs: [validate, checkov]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: Production  # Manual approval gate
 
     permissions:
       id-token: write
