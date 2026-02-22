@@ -41,6 +41,8 @@ jobs:
   validate:
     name: Validate & Lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
