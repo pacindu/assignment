@@ -170,6 +170,9 @@ resource "aws_kms_alias" "state" {
 }
 
 # S3 bucket for Terraform state
+#checkov:skip=CKV_AWS_18:Access logging for the state bucket would require a separate logging bucket, adding circular dependency risk
+#checkov:skip=CKV_AWS_144:Cross-region replication is not required for the Terraform state bucket in this assignment
+#checkov:skip=CKV2_AWS_62:S3 event notifications are not required for the Terraform state bucket
 resource "aws_s3_bucket" "state" {
   bucket = var.state_bucket_name
 
@@ -182,6 +185,21 @@ resource "aws_s3_bucket_versioning" "state" {
   versioning_configuration {
     status = "Enabled"
   }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "state" {
+  bucket = aws_s3_bucket.state.id
+
+  rule {
+    id     = "expire-noncurrent-state-versions"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = 90
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.state]
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "state" {

@@ -1,3 +1,4 @@
+#checkov:skip=CKV2_AWS_5:False positive — security groups are attached to ECS services, ALB, and other resources in the calling modules; checkov cannot resolve cross-module references
 resource "aws_security_group" "this" {
   name        = var.name
   description = var.description

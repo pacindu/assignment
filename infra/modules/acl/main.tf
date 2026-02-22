@@ -1,3 +1,4 @@
+#checkov:skip=CKV2_AWS_1:False positive — subnets are associated via the subnet_ids argument on aws_network_acl, which is equivalent to aws_network_acl_association resources
 resource "aws_network_acl" "this" {
   vpc_id     = var.vpc_id
   subnet_ids = var.subnet_ids

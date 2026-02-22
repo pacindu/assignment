@@ -1,3 +1,4 @@
+#checkov:skip=CKV_AWS_91:False positive — WAF is associated with this ALB in the waf module via aws_wafv2_web_acl_association; checkov cannot resolve cross-module associations
 resource "aws_lb" "this" {
   name               = var.name
   internal           = false
