@@ -97,13 +97,13 @@ jobs:
             --framework terraform \
             --output cli \
             --output sarif \
-            --output-file-path console,checkov-results.sarif
+            --output-file-path "console,${{ github.workspace }}/checkov-results.sarif"
 
       - name: Upload Checkov SARIF report
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: checkov-results.sarif
+          sarif_file: ${{ github.workspace }}/checkov-results.sarif
           category:   checkov
 
       - name: Fail on policy violations
