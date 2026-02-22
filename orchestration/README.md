@@ -256,35 +256,29 @@ pytest orchestration/tests/ -v --tb=short
 
 ---
 
-## Example Execution Inputs
+## Example Run Outputs
 
-### Success path
+Real S3 evidence artefacts captured from live executions are in [`examples/real/`](examples/real/).
 
-```json
-{
-  "environment": "Production",
-  "region": "ap-southeast-1",
-  "image_tag": "sha-5e3a1c7",
-  "image_uri": "992382521824.dkr.ecr.ap-southeast-1.amazonaws.com/ntt-gcc-production-app:sha-5e3a1c7",
-  "endpoint_url": "https://app.ntt.demodevops.net",
-  "cluster_name": "Ntt-Gcc-Production-Cluster",
-  "service_name": "Ntt-Gcc-Production-Service",
-  "task_family": "Ntt-Gcc-Production-Task",
-  "container_name": "app",
-  "log_group_name": "/ecs/app/ntt-gcc-production",
-  "evidence_bucket": "ntt-gcc-production-alb-logs-992382521824"
-}
+CLI execution logs are available in the GitHub Actions run history under the `invoke-workflow` job.
+
+### Success state path
 ```
+PreflightValidation → PreflightCheck → DeployApp → WaitForStability(60s)
+  → PostDeployVerification → VerificationCheck → UploadEvidenceSuccess → DeploymentSucceeded
+```
+Exit code: `0` — CLI duration ~133s (dominated by the 60s stability wait)
 
-Expected state path: `PreflightValidation → PreflightCheck → DeployApp → WaitForStability → PostDeployVerification → VerificationCheck → UploadEvidenceSuccess → DeploymentSucceeded`
+### Failure + rollback state path
+```
+PreflightValidation → PreflightCheck → DeployApp → WaitForStability(60s)
+  → PostDeployVerification → VerificationCheck → Rollback
+  → UploadEvidenceRollback → DeploymentFailed
+```
+Exit code: `1` — evidence artefact outcome = `ROLLBACK_COMPLETE`
 
-### Failure path (triggers rollback)
-
-Send the same input but to an environment where the new image is broken (returns HTTP 503 or has ERROR logs).
-
-Expected state path: `… → PostDeployVerification → VerificationCheck → Rollback → UploadEvidenceRollback → DeploymentFailed`
-
-Evidence artefact in S3: `deployment-evidence/Production/2026/02/22/120000-sha-5e3a1c7-ROLLBACK_COMPLETE.json`
+Evidence S3 key pattern:
+`deployment-evidence/{environment}/{YYYY/MM/DD}/{HHmmss}-{image_tag}-{outcome}.json`
 
 ---
 

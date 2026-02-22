@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0",
+  "outcome": "ROLLBACK_COMPLETE",
+  "timestamp": "2026-02-22T14:07:28Z",
+  "environment": "Production",
+  "region": "ap-southeast-1",
+  "image_tag": "3abd6394fb8ee1382dd818895b2a27978ba47632",
+  "image_uri": "992382521824.dkr.ecr.ap-southeast-1.amazonaws.com/ntt-gcc-production-app:3abd6394fb8ee1382dd818895b2a27978ba47632",
+  "stages": {
+    "preflight": {
+      "passed": true,
+      "checks": [
+        {
+          "check": "required_fields",
+          "passed": true,
+          "detail": "All required fields are present"
+        },
+        {
+          "check": "region_constraint",
+          "passed": true,
+          "detail": "Region 'ap-southeast-1' satisfies the GCC constraint"
+        },
+        {
+          "check": "account_id",
+          "passed": true,
+          "detail": "Caller account '992382521824' matches the expected account"
+        },
+        {
+          "check": "cluster_tags",
+          "passed": true,
+          "detail": "All mandatory tags present on cluster 'Ntt-Gcc-Production-Cluster': ['CostCenter', 'DataClassification', 'Owner']"
+        }
+      ]
+    },
+    "deploy": {
+      "deployed": true,
+      "new_task_def_arn": "arn:aws:ecs:ap-southeast-1:992382521824:task-definition/Ntt-Gcc-Production-Task:12",
+      "previous_task_def_arn": "arn:aws:ecs:ap-southeast-1:992382521824:task-definition/Ntt-Gcc-Production-Task:11",
+      "image_uri": "992382521824.dkr.ecr.ap-southeast-1.amazonaws.com/ntt-gcc-production-app:3abd6394fb8ee1382dd818895b2a27978ba47632"
+    },
+    "verification": {
+      "passed": false,
+      "checks": [
+        {
+          "check": "http_health",
+          "passed": false,
+          "detail": "GET https://app.ntt.demodevops.net/this-path-does-not-exist/health failed: NOT FOUND"
+        },
+        {
+          "check": "security_headers",
+          "passed": false,
+          "detail": "No response headers available (HTTP check failed)"
+        },
+        {
+          "check": "cloudwatch_errors",
+          "passed": true,
+          "detail": "Log group '/ecs/app/ntt-gcc-production' not found or has no events yet (treated as pass for initial deployments)"
+        }
+      ]
+    },
+    "rollback": {
+      "rolled_back": true,
+      "task_def_arn": "arn:aws:ecs:ap-southeast-1:992382521824:task-definition/Ntt-Gcc-Production-Task:11",
+      "service": "Ntt-Gcc-Production-Service",
+      "cluster": "Ntt-Gcc-Production-Cluster"
+    }
+  },
+  "error": {}
+}
