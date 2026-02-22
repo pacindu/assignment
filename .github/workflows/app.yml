@@ -77,9 +77,10 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      id-token: write        # OIDC token for AWS credential exchange
-      contents: read
-      security-events: write # SARIF upload to GitHub Security tab
+      id-token:        write  # OIDC token for AWS credential exchange
+      contents:        read
+      actions:         read   # required by upload-sarif in private repos
+      security-events: write  # SARIF upload to GitHub Security tab
 
     outputs:
       image: ${{ steps.meta.outputs.image }}

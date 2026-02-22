@@ -78,6 +78,7 @@ jobs:
     name: Checkov Policy Gate
     runs-on: ubuntu-latest
     permissions:
+      actions:         read   # required by upload-sarif in private repos
       contents:        read
       security-events: write
 
@@ -114,7 +115,7 @@ jobs:
             --framework terraform \
             --output sarif \
             --soft-fail \
-            > /tmp/checkov-raw.txt 2>&1 || true
+            > /tmp/checkov-raw.txt 2>/dev/null || true
           python3 -c "import os; d=open('/tmp/checkov-raw.txt').read(); i=d.find('{'); open(os.environ['SARIF_PATH'],'w').write(d[i:] if i>=0 else '{}')"
 
       - name: Upload Checkov SARIF report
