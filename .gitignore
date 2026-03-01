@@ -49,6 +49,7 @@ credentials.json
 # CI/CD artefacts
 # =============================================================================
 *.zip
+!part3/evidence/evidence-bundle-22542228626.zip
 *.tar.gz
 scan-results/
 trivy-report.*
@@ -100,3 +101,6 @@ logs/
 notes.md
 
 .terraform.lock.hcl
+
+
+      
