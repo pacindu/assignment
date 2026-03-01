@@ -19,13 +19,15 @@ part3/
 │   └── compliance.yml                 # 4-job GitHub Actions workflow
 │                                      # (in a real repo: .github/workflows/)
 │
-├── evidence/
-│   └── sample/                        # Sample evidence bundle
-│       ├── checkov-results.json
-│       ├── shiphat-report.json
-│       ├── jira-comment-payload.json
-│       ├── release-notes.md
-│       └── manifest.json
+├── artefacts/                         # Real evidence bundle from pipeline run 22542228626
+│   ├── checkov-results.json           # 183 passed, 24 failed — 6 custom checks
+│   ├── shiphat-report.json            # 9 passed, 1 failed (SEC-02) — live endpoint probed
+│   ├── jira-comment-payload.json      # Real Jira comment posted to GCC-1
+│   ├── release-notes.md              # Git log from branch GCC-1
+│   └── manifest.json                  # SHA-256 checksums for all 4 files
+│
+├── github-settings/
+│   └── main.tf                        # Terraform — GitHub branch protection ruleset
 │
 └── README.md
 ```
@@ -147,8 +149,18 @@ check categories using inline Python:
 | IaC: KMS | `IAC-05` | `aws_kms_key` present |
 | IaC: WAF | `IAC-06` | `aws_wafv2_web_acl` present |
 
-Live endpoint probes (TLS-01, SEC-01, SEC-02, EXP-01) are skipped if `ENDPOINT_URL` is
-not set — they are marked `SKIP` rather than `FAIL`.
+Live endpoint probes (TLS-01, SEC-01, SEC-02, EXP-01) run against `ENDPOINT_URL` when set.
+If `ENDPOINT_URL` is not configured they are marked `SKIP` rather than `FAIL`.
+
+**Results from run `22542228626` against `https://app.ntt.demodevops.net`:**
+
+| Check | Result | Detail |
+|---|---|---|
+| TLS-01 | PASS | TLS 1.2+ accepted |
+| SEC-01 | PASS | All 5 security headers present |
+| SEC-02 | FAIL | HTTP returns 200 instead of redirecting to HTTPS |
+| EXP-01 | PASS | `/health` returned HTTP 200 |
+| IAC-01–06 | PASS | All IaC checks clean across 74 `.tf` files |
 
 ---
 
@@ -159,11 +171,9 @@ Every pipeline run produces a timestamped ZIP archive containing:
 | File | Source |
 |---|---|
 | `checkov-results.json` | Checkov custom policy gate output |
-| `shiphat-report.json` | SHIP-HAT-like scan report |
+| `shiphat-report.json` | SHIP-HAT-like scan report (live endpoint + IaC checks) |
 | `jira-comment-payload.json` | Jira REST comment (real or mock) |
 | `release-notes.md` | Git-derived release notes with Jira ticket links |
-| `terraform-plan.txt` | `terraform plan` output (added by infra workflow) |
-| `terraform-apply.txt` | `terraform apply` output (added by infra workflow) |
 | `manifest.json` | SHA-256 checksums + metadata (auto-generated) |
 
 The bundle is uploaded as a **GitHub Actions artifact** with 90-day retention:
@@ -171,6 +181,8 @@ The bundle is uploaded as a **GitHub Actions artifact** with 90-day retention:
 ```
 evidence-bundle-{run_id}   (downloadable from the Actions run summary)
 ```
+
+A real evidence bundle from pipeline run `22542228626` is included in `artefacts/`.
 
 ---
 
@@ -203,7 +215,7 @@ gates           │
 
 ### Optional variables
 
-| Variable | Default | Purpose |
+| Variable | Value | Purpose |
 |---|---|---|
 | `JIRA_BASE_URL` | `https://ntt-gcc.atlassian.net` | Jira Cloud instance URL |
 | `ENDPOINT_URL` | `https://app.ntt.demodevops.net` | App endpoint for live SHIP-HAT probes |
@@ -252,7 +264,7 @@ to `main`. All production changes go through a branch + PR workflow.
 
 | Gap | Remediation |
 |---|---|
-| Jira integration falls back to mock if secrets not set | Add `JIRA_API_TOKEN` and `JIRA_EMAIL` to GitHub Secrets |
+| SEC-02 (HTTP→HTTPS redirect) fails on live endpoint | Configure ALB listener rule to redirect HTTP 80 → HTTPS 443 |
 | No human approval gate before `apply` | Add a GitHub Environment protection rule with required reviewers |
-| SHIP-HAT live probes skipped without `ENDPOINT_URL` | Set `ENDPOINT_URL` variable in GitHub repo settings |
+| Checkov gate exits non-zero on violations (24 failures) | Resolve tag / logging violations in Terraform or add justified `#checkov:skip` annotations |
 | Checkov custom policies not unit-tested | Add `pytest` tests using `checkov.common.runners.runner_registry` mocks |
