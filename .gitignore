@@ -49,7 +49,7 @@ credentials.json
 # CI/CD artefacts
 # =============================================================================
 *.zip
-!assignment/part3/evidence/evidence-bundle-22542228626.zip
+!part3/evidence/evidence-bundle-22542228626.zip
 *.tar.gz
 scan-results/
 trivy-report.*
