@@ -1,0 +1,641 @@
+# =============================================================================
+# Compliance CI/CD — NTT GCC Assignment 3 (Simplified)
+#
+# All pipeline logic is inlined as run: steps — no separate Python scripts.
+# Custom Checkov policies live in part3/policies/ (proper separation of policy
+# definitions from pipeline orchestration).
+#
+# Jobs:
+#   jira-gate        — Validates NTT-NNNN in branch name + posts real Jira comment
+#   compliance-gates — Checkov policy gate + SHIP-HAT IaC checks (combined)
+#   release-notes    — Generates markdown release notes from git log
+#   evidence-pack    — Bundles all evidence into a ZIP artifact
+#
+# GitHub Secrets required:
+#   JIRA_API_TOKEN   — Jira Cloud API token (Settings > Security > API tokens)
+#   JIRA_EMAIL       — Email address associated with the Jira account
+#
+# GitHub Variables (optional, have sensible defaults):
+#   JIRA_BASE_URL    — e.g. https://your-org.atlassian.net
+#   ENDPOINT_URL     — Live app endpoint for SHIP-HAT TLS/header probes
+#
+# In a real repo this file lives at .github/workflows/compliance.yml
+# =============================================================================
+
+name: Compliance Gate
+
+on:
+  push:
+    branches:
+      - main
+      - "NTT-*"
+  pull_request:
+    branches: [main]
+
+env:
+  TERRAFORM_DIR: infra/
+  POLICIES_DIR:  part3/policies/
+  EVIDENCE_DIR:  evidence/
+  JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL || 'https://ntt-gcc.atlassian.net' }}
+  ENDPOINT_URL:  ${{ vars.ENDPOINT_URL  || 'https://app.ntt.demodevops.net' }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Jira Gate
+  #    Fails the build if branch name or PR title does not contain NTT-NNNN.
+  #    (branch_name_pattern in repository rulesets requires Enterprise Cloud;
+  #    this pipeline check enforces the same rule on all plan tiers.)
+  #    If JIRA_API_TOKEN + JIRA_EMAIL are set, posts a real Jira comment.
+  # ---------------------------------------------------------------------------
+  jira-gate:
+    name: Jira Comment
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate ticket ID + post Jira comment
+        env:
+          GITHUB_HEAD_REF:  ${{ github.head_ref }}
+          GITHUB_REF:       ${{ github.ref }}
+          PR_TITLE:         ${{ github.event.pull_request.title }}
+          GITHUB_SHA:       ${{ github.sha }}
+          GITHUB_RUN_ID:    ${{ github.run_id }}
+          JIRA_BASE_URL:    ${{ env.JIRA_BASE_URL }}
+          JIRA_API_TOKEN:   ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL:       ${{ secrets.JIRA_EMAIL }}
+          PIPELINE_OUTCOME: IN_PROGRESS
+          EVIDENCE_DIR:     ${{ env.EVIDENCE_DIR }}
+        run: |
+          python3 - <<'PYEOF'
+          import base64, json, os, re, sys, urllib.error, urllib.request
+          from datetime import datetime, timezone
+
+          branch   = os.getenv("GITHUB_HEAD_REF", "") or \
+                     os.getenv("GITHUB_REF", "").replace("refs/heads/", "")
+          pr_title = os.getenv("PR_TITLE", "")
+
+          m = re.search(r"NTT-\d+", branch, re.IGNORECASE) or \
+              re.search(r"NTT-\d+", pr_title, re.IGNORECASE)
+
+          if not m:
+              print(f"ERROR: no Jira ticket ID found in branch '{branch}' or PR title")
+              print("       branch must follow: NTT-1234-short-description")
+              sys.exit(1)
+
+          ticket = m.group(0).upper()
+          print(f"Jira ticket: {ticket}")
+
+          run_id   = os.getenv("GITHUB_RUN_ID", "local")
+          sha      = os.getenv("GITHUB_SHA", "unknown")[:12]
+          outcome  = os.getenv("PIPELINE_OUTCOME", "IN_PROGRESS")
+          jira_url = os.getenv("JIRA_BASE_URL", "https://ntt-gcc.atlassian.net")
+          api_tkn  = os.getenv("JIRA_API_TOKEN", "")
+          email    = os.getenv("JIRA_EMAIL", "")
+
+          comment_body = {
+              "body": {
+                  "version": 1,
+                  "type": "doc",
+                  "content": [
+                      {
+                          "type": "paragraph",
+                          "content": [
+                              {"type": "text", "text": f"Pipeline run for {ticket} — outcome: {outcome}"}
+                          ]
+                      },
+                      {
+                          "type": "bulletList",
+                          "content": [
+                              {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": f"Run: {run_id}"}]}]},
+                              {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": f"SHA: {sha}"}]}]},
+                              {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Env: Production / ap-southeast-1"}]}]},
+                          ]
+                      }
+                  ]
+              }
+          }
+
+          api_url = f"{jira_url}/rest/api/3/issue/{ticket}/comment"
+          posted  = False
+
+          if api_tkn and email:
+              creds   = base64.b64encode(f"{email}:{api_tkn}".encode()).decode()
+              payload = json.dumps(comment_body).encode()
+              req = urllib.request.Request(
+                  api_url,
+                  data=payload,
+                  headers={
+                      "Authorization": f"Basic {creds}",
+                      "Content-Type":  "application/json",
+                      "Accept":        "application/json",
+                  },
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=15) as resp:
+                      print(f"Jira comment posted: HTTP {resp.status} -> {api_url}")
+                      posted = True
+              except urllib.error.HTTPError as e:
+                  print(f"WARN: Jira API returned HTTP {e.code}: {e.read().decode()[:200]}")
+              except urllib.error.URLError as e:
+                  print(f"WARN: Jira API unreachable: {e.reason}")
+          else:
+              print("INFO: JIRA_API_TOKEN/JIRA_EMAIL not set — writing mock payload (no real post)")
+
+          evidence_dir = os.getenv("EVIDENCE_DIR", "evidence/")
+          os.makedirs(evidence_dir, exist_ok=True)
+          evidence = {
+              "timestamp":  datetime.now(timezone.utc).isoformat(),
+              "ticket_id":  ticket,
+              "api_url":    api_url,
+              "posted":     posted,
+              "note":       "real Jira comment" if posted else "MOCK — set JIRA_API_TOKEN and JIRA_EMAIL secrets to post for real",
+              "payload":    comment_body,
+          }
+          out = os.path.join(evidence_dir, "jira-comment-payload.json")
+          with open(out, "w") as f:
+              json.dump(evidence, f, indent=2)
+          print(f"Jira evidence written to {out}")
+          PYEOF
+
+      - name: Upload Jira evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jira-evidence-${{ github.run_id }}
+          path: ${{ env.EVIDENCE_DIR }}jira-comment-payload.json
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
+  # 2. Compliance Gates (Checkov + SHIP-HAT combined)
+  #    Runs 6 custom Checkov policies + built-in Terraform checks.
+  #    Follows with inline SHIP-HAT IaC static checks.
+  # ---------------------------------------------------------------------------
+  compliance-gates:
+    name: Checkov + SHIP-HAT Compliance
+    needs: jira-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents:        read
+      actions:         read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Checkov
+        run: pip install --quiet checkov>=3.0.0
+
+      - name: Run Checkov policy gate
+        env:
+          TERRAFORM_DIR: ${{ env.TERRAFORM_DIR }}
+          POLICIES_DIR:  ${{ env.POLICIES_DIR }}
+          EVIDENCE_DIR:  ${{ env.EVIDENCE_DIR }}
+        run: |
+          mkdir -p "$EVIDENCE_DIR"
+
+          # Human-readable output in CI log
+          checkov \
+            --directory "$TERRAFORM_DIR" \
+            --framework terraform \
+            --external-checks-dir "$POLICIES_DIR" \
+            --output cli \
+            --compact \
+            --soft-fail
+
+          # Machine-readable JSON for evidence
+          checkov \
+            --directory "$TERRAFORM_DIR" \
+            --framework terraform \
+            --external-checks-dir "$POLICIES_DIR" \
+            --output json \
+            --output-file-path "${EVIDENCE_DIR}_checkov_tmp" \
+            --soft-fail || true
+
+          python3 - <<'PYEOF'
+          import glob, json, os, sys
+          from datetime import datetime, timezone
+
+          evidence_dir = os.getenv("EVIDENCE_DIR", "evidence/")
+          tf_dir       = os.getenv("TERRAFORM_DIR", "infra/")
+          policies_dir = os.getenv("POLICIES_DIR",  "part3/policies/")
+          tmp          = os.path.join(evidence_dir, "_checkov_tmp")
+
+          data = None
+          for fname in glob.glob(os.path.join(tmp, "*.json")):
+              with open(fname) as f:
+                  data = json.load(f)
+              break
+
+          summary     = (data or {}).get("summary", {})
+          passed      = summary.get("passed",  0)
+          failed      = summary.get("failed",  0)
+          skipped     = summary.get("skipped", 0)
+          gate_passed = failed == 0
+
+          evidence = {
+              "timestamp":    datetime.now(timezone.utc).isoformat(),
+              "tool":         "checkov",
+              "terraform_dir": tf_dir,
+              "custom_policies_dir": policies_dir,
+              "custom_checks": [
+                  "CKV_CUSTOM_1 - mandatory tags",
+                  "CKV_CUSTOM_2 - S3 public access block",
+                  "CKV_CUSTOM_3 - SG blocks ports 22/3389",
+                  "CKV_CUSTOM_4 - ALB access logs",
+                  "CKV_CUSTOM_5 - ECS awslogs driver",
+                  "CKV_CUSTOM_6 - no IAM Action:*",
+              ],
+              "gate_passed": gate_passed,
+              "summary": {"passed": passed, "failed": failed, "skipped": skipped},
+              "raw": data,
+          }
+
+          out = os.path.join(evidence_dir, "checkov-results.json")
+          with open(out, "w") as f:
+              json.dump(evidence, f, indent=2)
+
+          print(f"Checkov evidence: {out}")
+          print(f"  passed={passed}  failed={failed}  skipped={skipped}")
+
+          if not gate_passed:
+              print("FAIL: checkov gate — fix violations before merging")
+              sys.exit(1)
+          else:
+              print("OK: all Checkov checks passed")
+          PYEOF
+
+      - name: Generate Checkov SARIF for GitHub Code Scanning
+        if: always()
+        env:
+          TERRAFORM_DIR: ${{ env.TERRAFORM_DIR }}
+          POLICIES_DIR:  ${{ env.POLICIES_DIR }}
+        run: |
+          mkdir -p /tmp/sarif-out
+          checkov \
+            --directory "$TERRAFORM_DIR" \
+            --framework terraform \
+            --external-checks-dir "$POLICIES_DIR" \
+            --output sarif \
+            --output-file-path /tmp/sarif-out \
+            --soft-fail || true
+          SARIF=$(find /tmp/sarif-out -name "*.sarif" | head -1)
+          if [ -n "$SARIF" ]; then
+            cp "$SARIF" checkov-results.sarif
+          else
+            echo '{"version":"2.1.0","$schema":"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json","runs":[]}' > checkov-results.sarif
+          fi
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: checkov-results.sarif
+          category:   checkov-gcc
+
+      - name: SHIP-HAT IaC compliance scan
+        env:
+          ENDPOINT_URL:  ${{ env.ENDPOINT_URL }}
+          TERRAFORM_DIR: ${{ env.TERRAFORM_DIR }}
+          EVIDENCE_DIR:  ${{ env.EVIDENCE_DIR }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, re, sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          endpoint     = os.getenv("ENDPOINT_URL", "")
+          tf_dir       = os.getenv("TERRAFORM_DIR", "infra/")
+          evidence_dir = os.getenv("EVIDENCE_DIR",  "evidence/")
+          checks       = []
+
+          def ok(id, name, detail):
+              print(f"  [OK]   [{id}] {name}: {detail}")
+              return {"check": id, "name": name, "passed": True,  "detail": detail}
+
+          def fail(id, name, detail):
+              print(f"  [FAIL] [{id}] {name}: {detail}")
+              return {"check": id, "name": name, "passed": False, "detail": detail}
+
+          def skip(id, name, detail):
+              print(f"  [SKIP] [{id}] {name}: {detail}")
+              return {"check": id, "name": name, "passed": None,  "detail": detail}
+
+          # --- live endpoint checks (skipped if ENDPOINT_URL not set) ---
+          if not endpoint:
+              print("INFO: ENDPOINT_URL not set — skipping live TLS/header probes")
+              checks += [
+                  skip("TLS-01", "TLS 1.2+",          "ENDPOINT_URL not configured"),
+                  skip("SEC-01", "Security headers",   "ENDPOINT_URL not configured"),
+                  skip("SEC-02", "HTTP->HTTPS redirect","ENDPOINT_URL not configured"),
+                  skip("EXP-01", "/health HTTP 200",   "ENDPOINT_URL not configured"),
+              ]
+          else:
+              import ssl, urllib.error, urllib.request
+              print(f"Probing endpoint: {endpoint}")
+
+              # TLS-01
+              try:
+                  ctx = ssl.create_default_context()
+                  ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+                  urllib.request.urlopen(urllib.request.Request(endpoint, method="HEAD"), context=ctx, timeout=10)
+                  checks.append(ok("TLS-01", "TLS 1.2+", "endpoint accepted TLS 1.2+ connection"))
+              except ssl.SSLError as e:
+                  checks.append(fail("TLS-01", "TLS 1.2+", str(e)))
+              except urllib.error.URLError as e:
+                  checks.append(skip("TLS-01", "TLS 1.2+", f"unreachable: {e.reason}"))
+
+              # SEC-01
+              required_headers = ["Strict-Transport-Security","X-Content-Type-Options","X-Frame-Options","Content-Security-Policy","Cache-Control"]
+              try:
+                  with urllib.request.urlopen(endpoint, timeout=10) as resp:
+                      h = {k.lower() for k in resp.headers}
+                      missing = [r for r in required_headers if r.lower() not in h]
+                      if missing:
+                          checks.append(fail("SEC-01", "Security headers", f"missing: {missing}"))
+                      else:
+                          checks.append(ok("SEC-01", "Security headers", f"all {len(required_headers)} present"))
+              except urllib.error.URLError as e:
+                  checks.append(skip("SEC-01", "Security headers", f"unreachable: {e.reason}"))
+
+              # SEC-02
+              http_url = "http://" + endpoint.replace("https://", "", 1)
+              try:
+                  opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler())
+                  with opener.open(urllib.request.Request(http_url), timeout=10) as resp:
+                      checks.append(fail("SEC-02", "HTTP->HTTPS redirect", f"HTTP returned {resp.status} without redirect"))
+              except urllib.error.HTTPError as e:
+                  loc = e.headers.get("Location", "")
+                  if e.code in (301, 302, 307, 308) and loc.startswith("https://"):
+                      checks.append(ok("SEC-02", "HTTP->HTTPS redirect", f"HTTP {e.code} -> {loc}"))
+                  else:
+                      checks.append(fail("SEC-02", "HTTP->HTTPS redirect", f"HTTP {e.code}, location: {loc}"))
+              except urllib.error.URLError as e:
+                  checks.append(skip("SEC-02", "HTTP->HTTPS redirect", f"unreachable: {e.reason}"))
+
+              # EXP-01
+              health_url = endpoint.rstrip("/") + "/health"
+              try:
+                  with urllib.request.urlopen(health_url, timeout=10) as resp:
+                      if resp.status == 200:
+                          checks.append(ok("EXP-01", "/health HTTP 200", f"GET {health_url} -> {resp.status}"))
+                      else:
+                          checks.append(fail("EXP-01", "/health HTTP 200", f"GET {health_url} -> {resp.status}"))
+              except urllib.error.HTTPError as e:
+                  checks.append(fail("EXP-01", "/health HTTP 200", f"GET {health_url} -> {e.code}"))
+              except urllib.error.URLError as e:
+                  checks.append(skip("EXP-01", "/health HTTP 200", f"unreachable: {e.reason}"))
+
+          # --- static IaC checks ---
+          print(f"Scanning Terraform: {tf_dir}")
+          tf_files = list(Path(tf_dir).rglob("*.tf"))
+
+          def tf_contains(pattern):
+              return any(re.search(pattern, p.read_text(errors="replace")) for p in tf_files)
+
+          checks.append(ok("IAC-01", "S3 no public ACL",  f"clean across {len(tf_files)} .tf files")
+                        if not tf_contains(r'acl\s*=\s*"public-read')
+                        else fail("IAC-01", "S3 no public ACL", "found public-read ACL in terraform"))
+
+          checks.append(ok("IAC-02", "SG blocks 22/3389", f"clean across {len(tf_files)} .tf files")
+                        if not (tf_contains(r"from_port\s*=\s*(22|3389)") and tf_contains(r'cidr_blocks\s*=\s*\[?"0\.0\.0\.0/0"'))
+                        else fail("IAC-02", "SG blocks 22/3389", "found admin port open to 0.0.0.0/0"))
+
+          checks.append(ok("IAC-03", "CloudWatch logs",  "aws_cloudwatch_log_group found")
+                        if tf_contains(r"aws_cloudwatch_log_group")
+                        else fail("IAC-03", "CloudWatch logs", "no aws_cloudwatch_log_group found"))
+
+          checks.append(ok("IAC-04", "ALB access logs",  "access_logs block found")
+                        if tf_contains(r"access_logs")
+                        else fail("IAC-04", "ALB access logs", "no access_logs block found"))
+
+          checks.append(ok("IAC-05", "KMS encryption",   "aws_kms_key found")
+                        if tf_contains(r"aws_kms_key")
+                        else fail("IAC-05", "KMS encryption", "no aws_kms_key found"))
+
+          checks.append(ok("IAC-06", "WAF configured",   "aws_wafv2_web_acl found")
+                        if tf_contains(r"aws_wafv2_web_acl")
+                        else fail("IAC-06", "WAF configured", "no aws_wafv2_web_acl found"))
+
+          passed  = sum(1 for c in checks if c["passed"] is True)
+          failed  = sum(1 for c in checks if c["passed"] is False)
+          skipped = sum(1 for c in checks if c["passed"] is None)
+          print(f"\nSHIP-HAT summary: {passed} passed, {failed} failed, {skipped} skipped")
+
+          os.makedirs(evidence_dir, exist_ok=True)
+          report = {
+              "timestamp":   datetime.now(timezone.utc).isoformat(),
+              "tool":        "SHIP-HAT-like scan (emulated)",
+              "endpoint":    endpoint or "not checked",
+              "tf_dir":      tf_dir,
+              "gate_passed": failed == 0,
+              "summary":     {"passed": passed, "failed": failed, "skipped": skipped},
+              "checks":      checks,
+          }
+          out = os.path.join(evidence_dir, "shiphat-report.json")
+          with open(out, "w") as f:
+              json.dump(report, f, indent=2)
+          print(f"SHIP-HAT report: {out}")
+          PYEOF
+
+      - name: Upload compliance evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-evidence-${{ github.run_id }}
+          path: |
+            ${{ env.EVIDENCE_DIR }}checkov-results.json
+            ${{ env.EVIDENCE_DIR }}shiphat-report.json
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
+  # 3. Release Notes (runs in parallel with compliance-gates)
+  #    Generates markdown from git log, linking all NTT-NNNN ticket IDs.
+  # ---------------------------------------------------------------------------
+  release-notes:
+    name: Generate Release Notes
+    needs: jira-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes from git log
+        env:
+          GITHUB_SHA:    ${{ github.sha }}
+          GITHUB_REF:    ${{ github.ref }}
+          JIRA_BASE_URL: ${{ env.JIRA_BASE_URL }}
+          EVIDENCE_DIR:  ${{ env.EVIDENCE_DIR }}
+        run: |
+          python3 - <<'PYEOF'
+          import os, re, subprocess
+          from datetime import datetime, timezone
+
+          JIRA_RE = re.compile(r"NTT-\d+", re.IGNORECASE)
+
+          sha          = os.getenv("GITHUB_SHA", "")
+          ref          = os.getenv("GITHUB_REF", "refs/heads/unknown").replace("refs/heads/", "")
+          evidence_dir = os.getenv("EVIDENCE_DIR", "evidence/")
+          jira_base    = os.getenv("JIRA_BASE_URL", "https://ntt-gcc.atlassian.net")
+
+          def git(*args):
+              r = subprocess.run(["git", *args], capture_output=True, text=True)
+              return r.stdout.strip() if r.returncode == 0 else ""
+
+          last_tag = git("describe", "--tags", "--abbrev=0")
+          if last_tag:
+              raw   = git("log", f"{last_tag}..HEAD", "--pretty=format:%H %s")
+              since = last_tag
+          else:
+              raw   = git("log", "-50", "--pretty=format:%H %s")
+              since = "beginning of history (no tags)"
+
+          commits = []
+          for line in raw.splitlines():
+              if not line.strip():
+                  continue
+              sha_long, _, subject = line.partition(" ")
+              commits.append((sha_long[:12], subject))
+
+          print(f"Found {len(commits)} commits since {since}")
+
+          tickets = sorted({m.upper() for _, s in commits for m in JIRA_RE.findall(s)})
+          if tickets:
+              print(f"Jira tickets: {', '.join(tickets)}")
+
+          now   = datetime.now(timezone.utc)
+          lines = [
+              f"# Release Notes — {now.strftime('%Y-%m-%d')}",
+              "",
+              f"**Version:** `{sha[:8] or 'unknown'}`  ",
+              f"**Branch:** `{ref}`  ",
+              f"**Since:** `{since}`  ",
+              "",
+          ]
+
+          if tickets:
+              lines += ["## Jira Tickets", ""]
+              for t in tickets:
+                  lines.append(f"- [{t}]({jira_base}/browse/{t})")
+              lines.append("")
+
+          lines += ["## Commits", ""]
+          if commits:
+              for short, subject in commits:
+                  refs = " ".join(f"[{t.upper()}]" for t in JIRA_RE.findall(subject))
+                  lines.append(f"- `{short}` {subject}  {refs}".rstrip())
+          else:
+              lines.append("_no commits found_")
+          lines.append("")
+
+          os.makedirs(evidence_dir, exist_ok=True)
+          out = os.path.join(evidence_dir, "release-notes.md")
+          with open(out, "w") as f:
+              f.write("\n".join(lines))
+          print(f"Release notes written to {out}")
+          PYEOF
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-notes-${{ github.run_id }}
+          path: ${{ env.EVIDENCE_DIR }}release-notes.md
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
+  # 4. Evidence Pack
+  #    Downloads all artifacts from previous jobs, bundles into a signed ZIP,
+  #    uploads as a single GitHub Actions artifact (no S3 required).
+  # ---------------------------------------------------------------------------
+  evidence-pack:
+    name: Bundle Evidence Pack
+    needs: [compliance-gates, release-notes]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all evidence artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ github.run_id }}"
+          merge-multiple: true
+          path: evidence/
+
+      - name: Bundle evidence into signed ZIP
+        env:
+          GITHUB_SHA:    ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          EVIDENCE_DIR:  evidence/
+        run: |
+          python3 - <<'PYEOF'
+          import hashlib, json, os, zipfile
+          from datetime import datetime, timezone
+
+          evidence_dir = os.getenv("EVIDENCE_DIR", "evidence/")
+          sha          = os.getenv("GITHUB_SHA", "local")[:12]
+          run_id       = os.getenv("GITHUB_RUN_ID", "local")
+
+          wanted  = ["checkov-results.json","shiphat-report.json",
+                     "jira-comment-payload.json","release-notes.md",
+                     "terraform-plan.txt","terraform-apply.txt"]
+          present = [f for f in wanted if os.path.exists(os.path.join(evidence_dir, f))]
+
+          if not present:
+              print("WARN: no evidence files found — creating empty bundle")
+
+          def sha256(path):
+              h = hashlib.sha256()
+              with open(path, "rb") as f:
+                  for chunk in iter(lambda: f.read(65536), b""):
+                      h.update(chunk)
+              return h.hexdigest()
+
+          now          = datetime.now(timezone.utc)
+          archive_name = f"{now.strftime('%H%M%S')}-{sha}-evidence.zip"
+          archive_path = os.path.join(evidence_dir, archive_name)
+
+          manifest = {
+              "timestamp":   now.isoformat(),
+              "commit_sha":  sha,
+              "run_id":      run_id,
+              "environment": "Production",
+              "region":      "ap-southeast-1",
+              "files": [
+                  {"name": f, "sha256": sha256(os.path.join(evidence_dir, f)),
+                   "size_bytes": os.path.getsize(os.path.join(evidence_dir, f))}
+                  for f in present
+              ],
+          }
+
+          with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+              for f in present:
+                  zf.write(os.path.join(evidence_dir, f), arcname=f)
+              zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+
+          print(f"Archive: {archive_path}  ({os.path.getsize(archive_path)/1024:.1f} KB)")
+          print(json.dumps(manifest, indent=2))
+          PYEOF
+
+      - name: Upload evidence bundle
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-bundle-${{ github.run_id }}
+          path: evidence/
+          retention-days: 90

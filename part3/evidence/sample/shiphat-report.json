@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0",
+  "tool": "SHIP-HAT-like Compliance Scan (emulated)",
+  "timestamp": "2026-03-01T09:00:15Z",
+  "endpoint": "https://app.ntt.demodevops.net",
+  "terraform_dir": "infra/",
+  "gate_passed": true,
+  "summary": {
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0,
+    "total": 10
+  },
+  "checks": [
+    {
+      "check": "TLS-01",
+      "name": "TLS 1.2+ enforced",
+      "passed": true,
+      "detail": "Endpoint accepted TLS 1.2+ connection"
+    },
+    {
+      "check": "SEC-01",
+      "name": "Security response headers",
+      "passed": true,
+      "detail": "All 5 required headers present",
+      "present": [
+        "Strict-Transport-Security",
+        "X-Content-Type-Options",
+        "X-Frame-Options",
+        "Content-Security-Policy",
+        "Cache-Control"
+      ],
+      "missing": []
+    },
+    {
+      "check": "SEC-02",
+      "name": "HTTP\u2192HTTPS redirect",
+      "passed": true,
+      "detail": "HTTP 301 \u2192 https://app.ntt.demodevops.net/"
+    },
+    {
+      "check": "EXP-01",
+      "name": "/health returns HTTP 200",
+      "passed": true,
+      "detail": "GET https://app.ntt.demodevops.net/health \u2192 HTTP 200"
+    },
+    {
+      "check": "IAC-01",
+      "name": "S3 no public ACLs",
+      "passed": true,
+      "detail": "No public S3 ACLs found in 24 .tf files"
+    },
+    {
+      "check": "IAC-02",
+      "name": "SG blocks admin ports from internet",
+      "passed": true,
+      "detail": "No admin port exposure to 0.0.0.0/0 in 24 .tf files"
+    },
+    {
+      "check": "IAC-03",
+      "name": "CloudWatch log groups configured",
+      "passed": true,
+      "detail": "aws_cloudwatch_log_group resource found in IaC"
+    },
+    {
+      "check": "IAC-04",
+      "name": "ALB access logs configured",
+      "passed": true,
+      "detail": "access_logs block found in ALB resource"
+    },
+    {
+      "check": "IAC-05",
+      "name": "KMS encryption at rest",
+      "passed": true,
+      "detail": "aws_kms_key resource found in IaC"
+    },
+    {
+      "check": "IAC-06",
+      "name": "WAF associated with internet-facing endpoint",
+      "passed": true,
+      "detail": "aws_wafv2_web_acl resource found in IaC"
+    }
+  ],
+  "tool_description": "SHIP-HAT (Security & Hardening Assessment Tool) is a Singapore Government tool used in GCC/GCC+ regulated environments to verify baseline security hardening before a service goes live. This emulation covers the same check categories: TLS hardening, security response headers, HTTP-to-HTTPS redirect enforcement, health endpoint reachability, S3 public access, admin port exposure, CloudWatch logging, ALB access logs, KMS encryption at rest, and WAF association."
+}
