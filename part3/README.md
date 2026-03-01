@@ -82,8 +82,8 @@ checkov \
 Every branch merged to `main` must follow the naming convention:
 
 ```
-NTT-NNNN-short-description
-e.g. NTT-1234-add-nacl-rules
+GCC-NNNN-short-description
+e.g. GCC-1234-add-nacl-rules
 ```
 
 ### Real API comment (live posting)
@@ -180,7 +180,7 @@ evidence-bundle-{run_id}   (downloadable from the Actions run summary)
 [push to GCC-* or main / PR to main]
          │
          ▼
-    jira-gate           ← fails if branch has no NTT-NNNN; posts real Jira comment
+    jira-gate           ← fails if branch has no GCC-NNNN; posts real Jira comment
          │
     ┌────┴────┐
     ▼         ▼
@@ -214,7 +214,7 @@ gates           │
 
 ### Traceability — every change tied to a Jira ticket
 
-The `jira-gate` enforces `NTT-NNNN-*` branch naming, linking every commit to an approved
+The `jira-gate` enforces `GCC-NNNN-*` branch naming, linking every commit to an approved
 change request. Satisfies IM8 Clause 7.4 (Change Management) and GCC's requirement that all
 production changes are authorised and tracked in the organisation's project management system.
 

@@ -14,7 +14,7 @@ provider "github" {
 }
 
 # NOTE: branch_name_pattern in repository rulesets requires GitHub Enterprise Cloud.
-# Branch naming (NTT-NNNN-*) is enforced by the jira-gate pipeline job instead.
+# Branch naming (GCC-NNNN-*) is enforced by the jira-gate pipeline job instead.
 
 # =============================================================================
 # Ruleset — Main Branch Protection

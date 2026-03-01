@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
   "timestamp": "2026-03-01T09:00:00Z",
-  "ticket_id": "NTT-1234",
-  "api_url": "https://ntt-gcc.atlassian.net/rest/api/3/issue/NTT-1234/comment",
+  "ticket_id": "GCC-1234",
+  "api_url": "https://ntt-gcc.atlassian.net/rest/api/3/issue/GCC-1234/comment",
   "posted": false,
   "note": "MOCK — set JIRA_API_TOKEN and JIRA_EMAIL GitHub secrets to enable real Jira comment posting. The payload below is byte-for-byte compatible with the Jira Cloud REST API v3.",
   "auth_method": "Basic base64(JIRA_EMAIL:JIRA_API_TOKEN)",
@@ -16,7 +16,7 @@
           "content": [
             {
               "type": "text",
-              "text": "Pipeline run for NTT-1234 \u2014 outcome: SUCCESS"
+              "text": "Pipeline run for GCC-1234 \u2014 outcome: SUCCESS"
             }
           ]
         },
