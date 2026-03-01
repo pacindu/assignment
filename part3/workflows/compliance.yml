@@ -299,6 +299,7 @@ jobs:
           category:   checkov-gcc
 
       - name: SHIP-HAT IaC compliance scan
+        if: always()
         env:
           ENDPOINT_URL:  ${{ env.ENDPOINT_URL }}
           TERRAFORM_DIR: ${{ env.TERRAFORM_DIR }}

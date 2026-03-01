@@ -1,0 +1,71 @@
+{
+  "timestamp": "2026-03-01T10:43:09.433079+00:00",
+  "ticket_id": "GCC-1",
+  "api_url": "https://ntt-gcc.atlassian.net/rest/api/3/issue/GCC-1/comment",
+  "posted": true,
+  "note": "real Jira comment",
+  "payload": {
+    "body": {
+      "version": 1,
+      "type": "doc",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Pipeline run for GCC-1 \u2014 outcome: IN_PROGRESS"
+            }
+          ]
+        },
+        {
+          "type": "bulletList",
+          "content": [
+            {
+              "type": "listItem",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Run: 22541726241"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "listItem",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "SHA: ab9d7c2de54f"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "listItem",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Env: Production / ap-southeast-1"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
