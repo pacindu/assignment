@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-03-01T11:15:09.697393+00:00",
+  "commit_sha": "06a16a71ac5e",
+  "run_id": "22542228626",
+  "environment": "Production",
+  "region": "ap-southeast-1",
+  "files": [
+    {
+      "name": "checkov-results.json",
+      "sha256": "87b34ed3fe5191779c63bf0b88f1a69fd7ad4732d679d66c0cbad2edb07a92c2",
+      "size_bytes": 1274156
+    },
+    {
+      "name": "shiphat-report.json",
+      "sha256": "643b2d3e1441dac52b886625dca2f912692e871fe1b352a6559db9a09fd2b342",
+      "size_bytes": 1676
+    },
+    {
+      "name": "jira-comment-payload.json",
+      "sha256": "ed56717e92b6faebfc9c741c7dd65cc608e14961eec70b54c338b94517f4594e",
+      "size_bytes": 1723
+    },
+    {
+      "name": "release-notes.md",
+      "sha256": "9edadc25cc3fa06c2e002ede613ed0dbcdd9fe85f8e940881fadae0dffaff0e1",
+      "size_bytes": 2557
+    }
+  ]
+}

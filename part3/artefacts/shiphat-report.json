@@ -1,0 +1,74 @@
+{
+  "timestamp": "2026-03-01T11:14:58.007910+00:00",
+  "tool": "SHIP-HAT-like scan (emulated)",
+  "endpoint": "https://app.ntt.demodevops.net",
+  "tf_dir": "infra/",
+  "gate_passed": false,
+  "summary": {
+    "passed": 9,
+    "failed": 1,
+    "skipped": 0
+  },
+  "checks": [
+    {
+      "check": "TLS-01",
+      "name": "TLS 1.2+",
+      "passed": true,
+      "detail": "endpoint accepted TLS 1.2+ connection"
+    },
+    {
+      "check": "SEC-01",
+      "name": "Security headers",
+      "passed": true,
+      "detail": "all 5 present"
+    },
+    {
+      "check": "SEC-02",
+      "name": "HTTP->HTTPS redirect",
+      "passed": false,
+      "detail": "HTTP returned 200 without redirect"
+    },
+    {
+      "check": "EXP-01",
+      "name": "/health HTTP 200",
+      "passed": true,
+      "detail": "GET https://app.ntt.demodevops.net/health -> 200"
+    },
+    {
+      "check": "IAC-01",
+      "name": "S3 no public ACL",
+      "passed": true,
+      "detail": "clean across 74 .tf files"
+    },
+    {
+      "check": "IAC-02",
+      "name": "SG blocks 22/3389",
+      "passed": true,
+      "detail": "clean across 74 .tf files"
+    },
+    {
+      "check": "IAC-03",
+      "name": "CloudWatch logs",
+      "passed": true,
+      "detail": "aws_cloudwatch_log_group found"
+    },
+    {
+      "check": "IAC-04",
+      "name": "ALB access logs",
+      "passed": true,
+      "detail": "access_logs block found"
+    },
+    {
+      "check": "IAC-05",
+      "name": "KMS encryption",
+      "passed": true,
+      "detail": "aws_kms_key found"
+    },
+    {
+      "check": "IAC-06",
+      "name": "WAF configured",
+      "passed": true,
+      "detail": "aws_wafv2_web_acl found"
+    }
+  ]
+}

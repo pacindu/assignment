@@ -1,11 +1,12 @@
 # Release Notes — 2026-03-01
 
-**Version:** `ab9d7c2d`  
+**Version:** `06a16a71`  
 **Branch:** `GCC-1`  
 **Since:** `beginning of history (no tags)`  
 
 ## Commits
 
+- `06a16a71ac5e` added evidence and chnages to shiphat report generation
 - `ab9d7c2de54f` changes to branch naming and reconfig jira project as a kanban
 - `9b49ceb0ec1c` Assignment 3 with jira integration
 - `59813c57963f` added readme
