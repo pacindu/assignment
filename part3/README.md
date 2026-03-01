@@ -19,7 +19,7 @@ part3/
 │   └── compliance.yml                 # 4-job GitHub Actions workflow
 │                                      # (in a real repo: .github/workflows/)
 │
-├── artefacts/                         # Real evidence bundle from pipeline run 22542228626
+├── evidence/                         # Real evidence bundle from pipeline run 22542228626
 │   ├── checkov-results.json           # 183 passed, 24 failed — 6 custom checks
 │   ├── shiphat-report.json            # 9 passed, 1 failed (SEC-02) — live endpoint probed
 │   ├── jira-comment-payload.json      # Real Jira comment posted to GCC-1
@@ -182,7 +182,7 @@ The bundle is uploaded as a **GitHub Actions artifact** with 90-day retention:
 evidence-bundle-{run_id}   (downloadable from the Actions run summary)
 ```
 
-A real evidence bundle from pipeline run `22542228626` is included in `artefacts/`.
+A real evidence bundle from pipeline run `22542228626` is included in `evidence/`.
 
 ---
 
